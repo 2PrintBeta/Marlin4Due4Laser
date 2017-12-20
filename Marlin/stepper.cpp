@@ -613,7 +613,6 @@ FORCE_INLINE void trapezoid_generator_reset() {
 
 // "The Stepper Driver Interrupt" - This timer interrupt is the workhorse.
 // It pops blocks from the block_buffer and executes them by pulsing the stepper pins appropriately.
-
 HAL_STEP_TIMER_ISR {
 
   //STEP_TIMER_COUNTER->TC_CHANNEL[STEP_TIMER_CHANNEL].TC_SR;
@@ -669,10 +668,10 @@ HAL_STEP_TIMER_ISR {
       // #ifdef ADVANCE
       //   e_steps[current_block->active_extruder] = 0;
       // #endif
+
     }
     else {
         HAL_timer_stepper_count(HAL_TIMER_RATE / 1000); // 1kHz
- 
     }
   }
 
@@ -684,8 +683,7 @@ HAL_STEP_TIMER_ISR {
       }
       if (current_block->laser_status == LASER_OFF) {
         laser_extinguish();
-        if (laser.diagnostics)
-	  SERIAL_ECHOLN("Laser status set to off, in interrupt handler");
+        if (laser.diagnostics)  SERIAL_ECHOLN("Laser status set to off, in interrupt handler");
       }
     #endif // LASER
 
@@ -756,10 +754,7 @@ HAL_STEP_TIMER_ISR {
 	    }	
 		#ifdef LASER_RASTER
 		if (current_block->laser_mode == RASTER && current_block->laser_status == LASER_ON) { // Raster Firing Mode
-			ulValue = ((current_block->laser_raster_intensity_factor * current_block->laser_raster_data[counter_raster] + Seven_factor)/255.0)*LASER_PWM_MAX_DUTY_CYCLE;
-			//map to 0 - LASER_PWM_MAX_DUTY_CYCLE
-			laser_pulse(ulValue, current_block->laser_ticks);
-			
+			laser_pulse(current_block->laser_raster_data[counter_raster], current_block->laser_ticks);
 			counter_raster++;
 			#if LASER_CONTROL == 2
 			digitalWrite(LASER_FIRING_PIN, LASER_ARM);
@@ -845,11 +840,19 @@ HAL_STEP_TIMER_ISR {
 
     // If current block is finished, reset pointer
     if (step_events_completed >= current_block->step_event_count) {
-      current_block = NULL;
-      plan_discard_current_block();
-	  #ifdef LASER
-	  laser_extinguish();
-	  #endif
+		uint8_t mode = current_block->laser_mode;
+	  
+		current_block = NULL;
+		plan_discard_current_block();
+	  
+		#ifdef LASER
+		if(mode == RASTER && blocks_queued())
+		{	
+			//do not disable laser if we are in raster mode and there are more block in the queue
+		}
+		else laser_extinguish();
+		#endif
+	  
     }
   } // current_block != NULL
 }
